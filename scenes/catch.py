@@ -11,7 +11,7 @@ class BackGround:
 class Bucket:
     def __init__(self, image, x, y, speed = 520, world_w = 600):
         self.image = image
-        self.rect = self.image.get_rect(center=(x, y))
+        self.rect = self.image.get_rect(center = (x, y))
         self.speed = speed
         self.world_w = world_w
 
@@ -29,7 +29,7 @@ class Bucket:
 class Potato:
     def __init__(self, image, speed, x, y = -60):
         self.image = image
-        self.rect = self.image.get_rect(midtop=(x, y))
+        self.rect = self.image.get_rect(midtop = (x, y))
         self.speed = speed
 
     def update(self, dt):
@@ -42,7 +42,7 @@ class Potato:
         return self.rect.top > H
 
 class PotatoManager:
-    def __init__(self, image, W, H, spawn_interval = 0.9, speed_range = (280, 600), spawn_count = 1, max_count = 100):
+    def __init__(self, image, W, H, spawn_interval = 1.0, speed_range = (280, 600), spawn_count = 1, max_count = 100):
         self.image = image
         self.W, self.H = W, H
         self.spawn_interval = spawn_interval
@@ -54,7 +54,6 @@ class PotatoManager:
 
     def update(self, dt):
         dt = min(dt, 0.05)
-
         self.timer += dt
         while self.timer >= self.spawn_interval:
             self._spawn_batch(self.spawn_count)
@@ -98,19 +97,21 @@ class CatchScene:
         self.next_scene = None
 
         self.background_image = pygame.image.load("./images/background.png").convert()
-        self.bucket_image = pygame.transform.scale(
-            pygame.image.load("./images/bucket.png").convert_alpha(), (70, 48)
-        )
-        self.potato_image = pygame.transform.scale(
-            pygame.image.load("./images/potato.png").convert_alpha(), (29, 24)
-        )
+        self.bucket_image = pygame.transform.scale(pygame.image.load("./images/bucket.png").convert_alpha(), (70, 48))
+        self.potato_image = pygame.transform.scale(pygame.image.load("./images/potato.png").convert_alpha(), (29, 24))
 
         self.background = BackGround(self.background_image)
-        self.bucket = Bucket(self.bucket_image, W / 2, H - 120, world_w=W)
+        self.bucket = Bucket(self.bucket_image, W / 2, H - 120, world_w = W)
+
+        self._base_spawn_interval = 1.0
+        self._base_speed_range = (280, 600)
+        self._base_spawn_count = 1
         self.manager = PotatoManager(
             self.potato_image, W, H,
-            spawn_interval=0.9, speed_range=(280, 600),
-            spawn_count=1, max_count=100
+            spawn_interval = self._base_spawn_interval,
+            speed_range = self._base_speed_range,
+            spawn_count = self._base_spawn_count,
+            max_count = 100
         )
 
         try:
@@ -122,6 +123,9 @@ class CatchScene:
             self.title_font = pygame.font.SysFont(None, 80)
             self.hint_font = pygame.font.SysFont(None, 28)
 
+        self.hint = self.font.render("ESC : 메뉴로", True, (0, 0, 0))
+        self._dt_cap = 0.05
+
         self.score = 0
         self.lives = 3
         self.missed_total = 0
@@ -129,7 +133,11 @@ class CatchScene:
         self.game_over = False
         self._modal_shown = False
         self._ignore_next_dt = False
-        self.hint = self.font.render("ESC: 메뉴로", True, (0, 0, 0))
+
+        self.level = 1
+        self._next_level_at = 10.0
+        self._toast_timer = 0.0
+        self._toast_text = ""
 
         for _ in range(3):
             self.manager.spawn()
@@ -146,8 +154,11 @@ class CatchScene:
             dt = 0.0
             self._ignore_next_dt = False
 
+        if self._toast_timer > 0.0:
+            self._toast_timer = max(self._toast_timer - dt, 0.0)
+
         keys = pygame.key.get_pressed()
-        self.bucket.update(min(dt, 0.05), keys)
+        self.bucket.update(min(dt, self._dt_cap), keys)
 
         added_missed = self.manager.update(dt)
 
@@ -162,8 +173,9 @@ class CatchScene:
             self.missed_total += added_missed
 
         caught, kept = 0, []
+        bucket_hitbox = self.bucket.rect.inflate(20, 10)
         for p in self.manager.potatoes:
-            if p.rect.colliderect(self.bucket.rect):
+            if p.rect.colliderect(bucket_hitbox):
                 caught += 1
             else:
                 kept.append(p)
@@ -172,16 +184,39 @@ class CatchScene:
 
         self.elapsed += dt
 
+        if self.elapsed >= self._next_level_at:
+            self.level += 1
+            self._next_level_at += 10.0
+
+            self.manager.spawn_interval = max(0.55, self.manager.spawn_interval * 0.92)
+            lo, hi = self.manager.speed_range
+            lo = int(min(lo + 15, 900))
+            hi = int(min(hi + 30, 1200))
+            self.manager.speed_range = (lo, hi)
+
+            if self.level % 3 == 0:
+                self.manager.spawn_count = min(self.manager.spawn_count + 1, 3)
+
+            self._toast_text = f"난이도 상승! Lv.{self.level}"
+            self._toast_timer = 1.5
+
     def draw(self, screen):
         self.background.draw(screen)
         self.manager.draw(screen)
         self.bucket.draw(screen)
 
-        hud_left, hud_top, gap = 12, 12, 28
+        hud_left, hud_top, gap = 12, 12, 40
+        txt_level = self.font.render(f"현재 레벨 : {self.level}", True, (20, 20, 20))
+        txt_score = self.font.render(f"받은 개수 : {self.score}", True, (20, 20, 20))
+        txt_time  = self.font.render(f"생존 시간 : {self.elapsed:.2f}s", True, (20, 20, 20))
         screen.blit(self.hint, (hud_left, hud_top))
-        txt = self.font.render(f"점수: {self.score}", True, (20, 20, 20))
-        screen.blit(txt, (hud_left, hud_top + gap))
+        screen.blit(txt_level, (hud_left, hud_top + gap))
+        screen.blit(txt_score,  (hud_left, hud_top + gap * 2))
+        screen.blit(txt_time, (hud_left, hud_top + gap * 3))
         self._draw_lives(screen)
+
+        if self._toast_timer > 0.0 and self._toast_text:
+            self._draw_toast(screen, self._toast_text, y = 90)
 
         if self.game_over and not self._modal_shown:
             self._modal_shown = True
@@ -196,8 +231,20 @@ class CatchScene:
 
     def _draw_text_center(self, surface, text, font, color, y):
         s = font.render(text, True, color)
-        rect = s.get_rect(center=(self.W//2, y))
+        rect = s.get_rect(center = (self.W // 2, y))
         surface.blit(s, rect)
+
+    def _draw_toast(self, screen, text, y = 90):
+        msg = self.title_font.render(text, True, (255, 255, 255))
+        pad_x, pad_y = 24, 10
+        card = msg.get_rect(center = (self.W // 2, y))
+        card.inflate_ip(pad_x, pad_y)
+
+        overlay = pygame.Surface(card.size, pygame.SRCALPHA)
+        overlay.fill((20, 20, 20, 170))
+        screen.blit(overlay, card.topleft)
+        pygame.draw.rect(screen, (255, 255, 255), card, 2, border_radius = 12)
+        screen.blit(msg, msg.get_rect(center = card.center))
 
     def _run_game_over_modal(self, screen):
         overlay = pygame.Surface((self.W, self.H), pygame.SRCALPHA)
@@ -206,16 +253,17 @@ class CatchScene:
 
         card_w, card_h = 540, 360
         card = pygame.Rect(0, 0, card_w, card_h)
-        card.center = (self.W//2, self.H//2)
+        card.center = (self.W // 2, self.H // 2)
         pygame.draw.rect(screen, (245, 245, 245), card, border_radius=18)
         pygame.draw.rect(screen, (220, 220, 220), card, 2, border_radius=18)
 
         top = card.top
         self._draw_text_center(screen, "GAME OVER", self.title_font, (30, 30, 30), top + 70)
-        self._draw_text_center(screen, f"받은 개수 : {self.score}", self.font, (50, 50, 50), top + 140)
-        self._draw_text_center(screen, f"놓친 개수 : {self.missed_total}", self.font, (50, 50, 50), top + 180)
-        self._draw_text_center(screen, f"플레이 시간 : {self.elapsed:.2f}초", self.font, (50, 50, 50), top + 220)
-        self._draw_text_center(screen, "R: 재시작   |   ESC: 메뉴", self.hint_font, (90, 90, 90), top + 270)
+        self._draw_text_center(screen, f"현재 레벨 : {self.level}", self.font, (50, 50, 50), top + 140)
+        self._draw_text_center(screen, f"받은 개수 : {self.score}", self.font, (50, 50, 50), top + 180)
+        self._draw_text_center(screen, f"놓친 개수 : {self.missed_total}", self.font, (50, 50, 50), top + 220)
+        self._draw_text_center(screen, f"플레이 시간 : {self.elapsed:.2f}초", self.font, (50, 50, 50), top + 260)
+        self._draw_text_center(screen, "R : 재시작 | ESC : 메뉴", self.hint_font, (90, 90, 90), top + 330)
         pygame.display.flip()
 
         clock = pygame.time.Clock()
@@ -244,7 +292,16 @@ class CatchScene:
         self._modal_shown = False
         self._ignore_next_dt = False
 
+        self.level = 1
+        self._next_level_at = 10.0
+        self._toast_timer = 0.0
+        self._toast_text = ""
+
         self.manager.clear()
+        self.manager.spawn_interval = self._base_spawn_interval
+        self.manager.speed_range = self._base_speed_range
+        self.manager.spawn_count = self._base_spawn_count
+
         for _ in range(3):
             self.manager.spawn()
 
