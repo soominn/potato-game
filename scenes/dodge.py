@@ -111,7 +111,16 @@ class DodgeScene:
 
         self.background = BackGround(self.background_image)
         self.player = Player(self.player_image, W / 2, H / 2 + 270, world_w = W)
-        self.manager = PotatoManager(self.potato_image, W, H, spawn_interval = 0.7, speed_range = (320, 700), spawn_count = 3, max_count = 120)
+        self.manager = PotatoManager(
+            self.potato_image, W, H,
+            spawn_interval = 0.7,
+            speed_range = (320, 700),
+            spawn_count = 3,
+            max_count = 120
+        )
+        self._base_spawn_interval = self.manager.spawn_interval
+        self._base_speed_range = self.manager.speed_range
+        self._base_spawn_count = self.manager.spawn_count
 
         for _ in range(6):
             self.manager.spawn()
@@ -210,9 +219,9 @@ class DodgeScene:
         rect = s.get_rect(center = (self.W // 2, y))
         surface.blit(s, rect)
 
-    def _draw_toast(self, screen, text, y = 90):
-        msg = self.title_font.render(text, True, (255, 255, 255))
-        pad_x, pad_y = 24, 10
+    def _draw_toast(self, screen, text, y = 120):
+        msg = self.font.render(text, True, (255, 255, 255))
+        pad_x, pad_y = 12, 6
         card = msg.get_rect(center = (self.W // 2, y))
         card.inflate_ip(pad_x, pad_y)
 
@@ -272,7 +281,12 @@ class DodgeScene:
         self._toast_text = ""
 
         self.manager.clear()
+        self.manager.spawn_interval = self._base_spawn_interval
+        self.manager.speed_range = self._base_speed_range
+        self.manager.spawn_count = self._base_spawn_count
+
         for _ in range(6):
             self.manager.spawn()
+
         self.player.rect.centerx = self.W // 2
         self.player.rect.centery = self.H // 2 + 270
