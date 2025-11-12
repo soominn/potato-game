@@ -32,7 +32,7 @@ python -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 # Windows
-.\.venv\Scriptsctivate
+.\.venv\Scripts\activate
 ```
 
 ### 📦 1) 의존성 설치
